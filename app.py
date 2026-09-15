@@ -13,7 +13,8 @@ app = Flask(__name__)
 CORS(app)
 
 # Model location
-MODEL_PATH = "/content/drive/MyDrive/Nutmeg_AI/best_nutmeg_model.keras"
+MODEL_PATH = BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "best_nutmeg_model.keras")
 
 # Load model once when the API starts
 model = load_model(MODEL_PATH)

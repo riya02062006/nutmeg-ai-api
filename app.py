@@ -1,60 +1,56 @@
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from tensorflow.keras.models import load_model
+from tensorflow.lite.python.interpreter import Interpreter
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 from PIL import Image
 import numpy as np
 import os
 
 app = Flask(__name__)
-
-# Allow your browser interface to access the API
 CORS(app)
 
-# Model location
-MODEL_PATH = BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "best_nutmeg_model.keras")
+# TFLite model
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "best_nutmeg_model.tflite")
 
-# Load model once when the API starts
-model = load_model(MODEL_PATH)
+# Load model once when server starts
+interpreter = Interpreter(model_path=MODEL_PATH)
+interpreter.allocate_tensors()
 
-print("Nutmeg AI model loaded successfully!")
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+print("Nutmeg TFLite model loaded successfully!")
 
 
 def predict_nutmeg(image):
-    """
-    Predict GOOD/BAD using the trained MobileNetV2 model.
-    """
-
-    # Convert image to RGB
     image = image.convert("RGB")
-
-    # Resize to the model input size
     image = image.resize((224, 224))
 
-    # Convert to NumPy array
     image_array = np.array(image, dtype=np.float32)
-
-    # MobileNetV2 preprocessing
     image_array = preprocess_input(image_array)
-
-    # Add batch dimension
     image_array = np.expand_dims(image_array, axis=0)
 
-    # AI prediction
-    prediction = model.predict(image_array, verbose=0)[0]
+    # Send image to TFLite model
+    interpreter.set_tensor(
+        input_details[0]["index"],
+        image_array
+    )
 
-    # Class 0 = BAD
-    # Class 1 = GOOD
+    interpreter.invoke()
+
+    prediction = interpreter.get_tensor(
+        output_details[0]["index"]
+    )[0]
+
+    # Class order: 0 = Bad, 1 = Good
     bad_probability = float(prediction[0])
     good_probability = float(prediction[1])
 
-    # Convert to percentages
-    bad_percentage = bad_probability * 100
     good_percentage = good_probability * 100
+    bad_percentage = bad_probability * 100
 
-    # Final decision
+    # 70% threshold
     if good_probability >= 0.70:
         decision = "GOOD"
     else:
@@ -80,7 +76,6 @@ def health():
 
 @app.route("/predict", methods=["POST"])
 def predict():
-
     if "image" not in request.files:
         return jsonify({
             "error": "No image uploaded"
@@ -88,11 +83,8 @@ def predict():
 
     try:
         image_file = request.files["image"]
-
-        # Open uploaded image
         image = Image.open(image_file)
 
-        # Run AI prediction
         decision, good_percentage, bad_percentage = predict_nutmeg(image)
 
         return jsonify({
@@ -102,7 +94,6 @@ def predict():
         })
 
     except Exception as e:
-
         print("Prediction error:", str(e))
 
         return jsonify({
@@ -111,10 +102,7 @@ def predict():
 
 
 if __name__ == "__main__":
-
-    # Railway/Render/etc. provide PORT automatically.
     port = int(os.environ.get("PORT", 5000))
-
     app.run(
         host="0.0.0.0",
         port=port

@@ -1,0 +1,12 @@
+{
+    "model": "MobileNetV2",
+    "image_size": [
+        224,
+        224
+    ],
+    "classes": {
+        "0": "Bad",
+        "1": "Good"
+    },
+    "good_threshold": 0.7
+}
